@@ -99,7 +99,40 @@ abstract class AbstractPdoAdapter implements AdapterInterface
 
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
 
-        return is_array($rows) ? $rows : [];
+        return $rows;
+    }
+
+    public function beginTransaction(): void
+    {
+        try {
+            if (!$this->pdo->beginTransaction()) {
+                throw new DbException('Failed to begin transaction.');
+            }
+        } catch (PDOException $exception) {
+            throw new DbException($exception->getMessage(), (int) $exception->getCode(), $exception);
+        }
+    }
+
+    public function commit(): void
+    {
+        try {
+            if (!$this->pdo->commit()) {
+                throw new DbException('Failed to commit transaction.');
+            }
+        } catch (PDOException $exception) {
+            throw new DbException($exception->getMessage(), (int) $exception->getCode(), $exception);
+        }
+    }
+
+    public function rollBack(): void
+    {
+        try {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+        } catch (PDOException $exception) {
+            throw new DbException($exception->getMessage(), (int) $exception->getCode(), $exception);
+        }
     }
 
     abstract protected function tableExistsSql(): string;

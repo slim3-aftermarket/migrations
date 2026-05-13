@@ -31,4 +31,10 @@ interface AdapterInterface
      * @return array<int, array<string, mixed>>
      */
     public function fetchAll(string $sql): array;
+
+    public function beginTransaction(): void;
+
+    public function commit(): void;
+
+    public function rollBack(): void;
 }

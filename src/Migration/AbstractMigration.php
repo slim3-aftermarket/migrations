@@ -11,6 +11,12 @@ abstract class AbstractMigration
     private AdapterInterface $adapter;
     private string $direction = 'up';
 
+    /**
+     * When true (default), migration body and version-table update run in one DB transaction.
+     * Set to false for operations that cannot run inside a transaction (e.g. PostgreSQL CONCURRENTLY).
+     */
+    protected bool $transactional = true;
+
     final public function setAdapter(AdapterInterface $adapter): void
     {
         $this->adapter = $adapter;
@@ -19,6 +25,11 @@ abstract class AbstractMigration
     final public function setDirection(string $direction): void
     {
         $this->direction = $direction;
+    }
+
+    final public function isTransactional(): bool
+    {
+        return $this->transactional;
     }
 
     public function up(): void

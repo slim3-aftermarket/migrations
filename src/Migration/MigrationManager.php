@@ -6,6 +6,7 @@ namespace Sl3Migrations\Migration;
 
 use ReflectionMethod;
 use Sl3Migrations\Db\AdapterInterface;
+use Throwable;
 
 final class MigrationManager
 {
@@ -59,13 +60,14 @@ final class MigrationManager
             }
 
             $startedAt = microtime(true);
-            $this->runMigration($migrationDefinition, 'up');
-            $elapsed = (int) round((microtime(true) - $startedAt) * 1000);
-            $this->stateStore->markApplied(
-                $migrationDefinition->version,
-                $migrationDefinition->migrationName(),
-                $elapsed
-            );
+            $this->runMigrationWithAfterBody($migrationDefinition, 'up', function () use ($migrationDefinition, $startedAt): void {
+                $elapsed = (int) round((microtime(true) - $startedAt) * 1000);
+                $this->stateStore->markApplied(
+                    $migrationDefinition->version,
+                    $migrationDefinition->migrationName(),
+                    $elapsed
+                );
+            });
         }
 
         return new MigrationResult('up', $executed, $dryRun);
@@ -104,8 +106,9 @@ final class MigrationManager
                 continue;
             }
 
-            $this->runMigration($migrationDefinition, 'down');
-            $this->stateStore->markRolledBack($migrationDefinition->version);
+            $this->runMigrationWithAfterBody($migrationDefinition, 'down', function () use ($migrationDefinition): void {
+                $this->stateStore->markRolledBack($migrationDefinition->version);
+            });
         }
 
         return new MigrationResult('down', $executed, $dryRun);
@@ -133,7 +136,39 @@ final class MigrationManager
         return $rows;
     }
 
-    private function runMigration(MigrationDefinition $definition, string $direction): void
+    /**
+     * Runs migration SQL and then $afterBody in one transaction when {@see AbstractMigration::isTransactional()} is true.
+     *
+     * @param callable():void $afterBody
+     */
+    private function runMigrationWithAfterBody(MigrationDefinition $definition, string $direction, callable $afterBody): void
+    {
+        $migration = $this->instantiateMigration($definition);
+        $migration->setAdapter($this->adapter);
+        $migration->setDirection($direction);
+
+        $run = function () use ($migration, $definition, $direction, $afterBody): void {
+            $this->invokeMigrationDirection($migration, $definition, $direction);
+            $afterBody();
+        };
+
+        if (!$migration->isTransactional()) {
+            $run();
+
+            return;
+        }
+
+        $this->adapter->beginTransaction();
+        try {
+            $run();
+            $this->adapter->commit();
+        } catch (Throwable $exception) {
+            $this->adapter->rollBack();
+            throw $exception;
+        }
+    }
+
+    private function instantiateMigration(MigrationDefinition $definition): AbstractMigration
     {
         $migration = new $definition->className();
         if (!$migration instanceof AbstractMigration) {
@@ -144,9 +179,11 @@ final class MigrationManager
             ));
         }
 
-        $migration->setAdapter($this->adapter);
-        $migration->setDirection($direction);
+        return $migration;
+    }
 
+    private function invokeMigrationDirection(AbstractMigration $migration, MigrationDefinition $definition, string $direction): void
+    {
         if ($direction === 'up') {
             if ($this->hasCustomMethod($migration, 'up')) {
                 $migration->up();

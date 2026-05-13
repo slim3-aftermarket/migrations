@@ -111,6 +111,133 @@ PHP
         self::assertSame(0, $existsDown);
     }
 
+    public function testTransactionalMigrationRollsBackSchemaAndVersionWhenBodyThrows(): void
+    {
+        file_put_contents($this->migrationsPath . '/Version20990101000001.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Sl3Migrations\Migration\AbstractMigration;
+
+final class Version20990101000001 extends AbstractMigration
+{
+    public function up(): void
+    {
+        $this->execute('CREATE TABLE boom_partial (id INTEGER PRIMARY KEY)');
+        throw new \RuntimeException('intentional');
+    }
+
+    public function down(): void
+    {
+    }
+}
+PHP
+        );
+
+        $manager = $this->buildManager();
+        $manager->initialize();
+
+        try {
+            $manager->migrate();
+            self::fail('Expected RuntimeException');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('intentional', $exception->getMessage());
+        }
+
+        $pdo = new PDO('sqlite:' . $this->dbPath);
+        $tableCount = (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='boom_partial'")->fetchColumn();
+        self::assertSame(0, $tableCount);
+        $versionRows = (int) $pdo->query('SELECT COUNT(*) FROM db_version')->fetchColumn();
+        self::assertSame(0, $versionRows);
+    }
+
+    public function testNonTransactionalMigrationLeavesSchemaWhenBodyThrowsAfterDdl(): void
+    {
+        file_put_contents($this->migrationsPath . '/Version20990101000002.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Sl3Migrations\Migration\AbstractMigration;
+
+final class Version20990101000002 extends AbstractMigration
+{
+    protected bool $transactional = false;
+
+    public function up(): void
+    {
+        $this->execute('CREATE TABLE no_tx_partial (id INTEGER PRIMARY KEY)');
+        throw new \RuntimeException('intentional');
+    }
+
+    public function down(): void
+    {
+    }
+}
+PHP
+        );
+
+        $manager = $this->buildManager();
+        $manager->initialize();
+
+        try {
+            $manager->migrate();
+            self::fail('Expected RuntimeException');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('intentional', $exception->getMessage());
+        }
+
+        $pdo = new PDO('sqlite:' . $this->dbPath);
+        $tableCount = (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='no_tx_partial'")->fetchColumn();
+        self::assertSame(1, $tableCount);
+        $versionRows = (int) $pdo->query('SELECT COUNT(*) FROM db_version')->fetchColumn();
+        self::assertSame(0, $versionRows);
+    }
+
+    public function testTransactionalRollbackRollsBackDownAndKeepsVersionWhenDownThrows(): void
+    {
+        file_put_contents($this->migrationsPath . '/Version20990101000003.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Sl3Migrations\Migration\AbstractMigration;
+
+final class Version20990101000003 extends AbstractMigration
+{
+    public function up(): void
+    {
+        $this->execute('CREATE TABLE keep_on_rollback_fail (id INTEGER PRIMARY KEY)');
+    }
+
+    public function down(): void
+    {
+        $this->execute('DROP TABLE keep_on_rollback_fail');
+        throw new \RuntimeException('rollback intentional');
+    }
+}
+PHP
+        );
+
+        $manager = $this->buildManager();
+        $manager->initialize();
+        $manager->migrate();
+
+        try {
+            $manager->rollback(steps: 1);
+            self::fail('Expected RuntimeException');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('rollback intentional', $exception->getMessage());
+        }
+
+        $pdo = new PDO('sqlite:' . $this->dbPath);
+        $tableCount = (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='keep_on_rollback_fail'")->fetchColumn();
+        self::assertSame(1, $tableCount);
+        $versionRows = (int) $pdo->query("SELECT COUNT(*) FROM db_version WHERE version = '20990101000003'")->fetchColumn();
+        self::assertSame(1, $versionRows);
+    }
+
     private function buildManager(): MigrationManager
     {
         $pdo = new PDO('sqlite:' . $this->dbPath);
