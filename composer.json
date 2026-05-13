@@ -1,0 +1,46 @@
+{
+    "name": "slim3-aftermarket/migrations",
+    "description": "Framework-agnostic migrations manager for PHP projects",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2 <=8.3.30",
+        "ext-json": "*",
+        "ext-pdo": "*",
+        "symfony/console": "^7.2"
+    },
+    "require-dev": {
+        "humbug/box": "^4.6",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.5",
+        "friendsofphp/php-cs-fixer": "^3.80"
+    },
+    "autoload": {
+        "psr-4": {
+            "Sl3Migrations\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Sl3Migrations\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/sl3-migrations"
+    ],
+    "scripts": {
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite unit",
+        "test:integration": "phpunit --testsuite integration",
+        "stan": "phpstan analyse",
+        "fix": "php-cs-fixer fix",
+        "build-phar": "vendor/bin/box compile"
+    },
+    "config": {
+        "platform": {
+            "php": "8.3.30"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

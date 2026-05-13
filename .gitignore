@@ -1,0 +1,5 @@
+/vendor/
+/.phpunit.cache/
+/sl3-migrations.phar
+/var/
+/.idea/

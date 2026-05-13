@@ -1,0 +1,21 @@
+{
+    "main": "bin/sl3-migrations",
+    "output": "sl3-migrations.phar",
+    "chmod": "0755",
+    "compactors": [
+        "KevinGH\\Box\\Compactor\\Php"
+    ],
+    "directories": [
+        "src",
+        "bin"
+    ],
+    "files": [
+        "composer.json"
+    ],
+    "finder": [
+        {
+            "in": "vendor"
+        }
+    ],
+    "stub": true
+}
