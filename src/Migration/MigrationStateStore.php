@@ -14,6 +14,11 @@ final class MigrationStateStore
     ) {
     }
 
+    public function tableName(): string
+    {
+        return $this->versionTable;
+    }
+
     public function exists(): bool
     {
         return $this->adapter->tableExists($this->versionTable);

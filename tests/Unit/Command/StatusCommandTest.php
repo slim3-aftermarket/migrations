@@ -24,15 +24,16 @@ final class StatusCommandTest extends TestCase
         $this->removeDirectory($this->tmpDir);
     }
 
-    public function testFailsWithActionableMessageWhenDbVersionTableMissing(): void
+    public function testCreatesDbVersionTableWhenMissingThenSucceeds(): void
     {
         $configPath = $this->tmpDir . '/sl3-migrations.php';
+        $dbPath = $this->tmpDir . '/app.sqlite';
         file_put_contents($configPath, <<<PHP
 <?php
 
 return [
     'driver' => 'sqlite',
-    'database' => '{$this->tmpDir}/app.sqlite',
+    'database' => '{$dbPath}',
     'migrations_path' => '{$this->tmpDir}/migrations',
     'version_table' => 'db_version',
 ];
@@ -44,9 +45,13 @@ PHP
         $exitCode = $tester->execute(['--configuration' => $configPath]);
         $output = $tester->getDisplay();
 
-        self::assertSame(1, $exitCode);
-        self::assertStringContainsString('State table `db_version` was not found', $output);
-        self::assertStringContainsString('sl3-migrations init', $output);
+        self::assertSame(0, $exitCode);
+        self::assertStringContainsString('State table `db_version` was not found; creating it.', $output);
+        self::assertStringContainsString('State table `db_version` is ready.', $output);
+
+        $pdo = new \PDO('sqlite:' . $dbPath);
+        $count = $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'db_version'")->fetchColumn();
+        self::assertSame(1, (int) $count);
     }
 
     private function removeDirectory(string $directory): void

@@ -99,6 +99,46 @@ PHP
         self::assertStringContainsString('"status": "down"', $rolledBackStatusOutput);
     }
 
+    public function testMigrateWithoutInitCreatesVersionTableAndAppliesMigrations(): void
+    {
+        mkdir($this->migrationsPath, 0775, true);
+
+        file_put_contents($this->migrationsPath . '/Version20220718170654.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Sl3Migrations\Migration\AbstractMigration;
+
+final class Version20220718170654 extends AbstractMigration
+{
+    public function change(): void
+    {
+        $this->addSql(
+            'CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL)',
+            'DROP TABLE users'
+        );
+    }
+}
+PHP
+        );
+
+        $appTester = new ApplicationTester(new Application());
+
+        self::assertSame(0, $appTester->run([
+            'command' => 'migrate',
+            '--configuration' => $this->configPath,
+        ]));
+
+        $display = $appTester->getDisplay();
+        self::assertStringContainsString('State table `db_version` was not found; creating it.', $display);
+        self::assertStringContainsString('Applied 1 migration(s): 20220718170654', $display);
+
+        $pdo = new \PDO('sqlite:' . $this->dbPath);
+        $tables = (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('db_version', 'users')")->fetchColumn();
+        self::assertSame(2, $tables);
+    }
+
     public function testCreateCommandGeneratesTimestampBasedMigrationClass(): void
     {
         $appTester = new ApplicationTester(new Application());

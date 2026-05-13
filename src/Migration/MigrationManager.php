@@ -22,6 +22,11 @@ final class MigrationManager
         return $this->stateStore->exists();
     }
 
+    public function stateTableName(): string
+    {
+        return $this->stateStore->tableName();
+    }
+
     public function initialize(): void
     {
         $this->stateStore->ensureInitialized();

@@ -66,9 +66,14 @@ abstract class AbstractMigrationCommand extends Command
             return true;
         }
 
-        $output->writeln('<error>State table `db_version` was not found.</error>');
-        $output->writeln('<comment>Run `vendor/bin/sl3-migrations init` or `./sl3-migrations.phar init` first.</comment>');
+        $table = $manager->stateTableName();
+        $output->writeln(sprintf(
+            '<comment>State table `%s` was not found; creating it.</comment>',
+            $table
+        ));
+        $manager->initialize();
+        $output->writeln(sprintf('<info>State table `%s` is ready.</info>', $table));
 
-        return false;
+        return true;
     }
 }
