@@ -1,0 +1,38 @@
+# Прикрепляет sl3-migrations.phar к уже опубликованному GitHub Release.
+# Сценарий: создаёте тег → Releases → New release → выбираете тег → Publish.
+# После публикации этот workflow собирает PHAR из коммита тега и загружает asset.
+
+name: Release assets
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  upload-phar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_sqlite
+          tools: composer:v2
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+
+      - run: vendor/bin/box compile
+
+      - name: Smoke test PHAR
+        run: ./sl3-migrations.phar --help
+
+      - name: Upload PHAR to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.event.release.tag_name }}" sl3-migrations.phar --clobber
